@@ -283,10 +283,17 @@ function crackWhip() {
 }
 
 /** Tray click / keybind: show the whip overlay. On Wayland the overlay is decorative
- *  (you can't reliably swing it to crack), so also fire the interrupt directly. */
+ *  (you can't swing it with the mouse), so fire the interrupt directly and auto-drop the
+ *  whip after a beat so it cracks and falls away instead of hanging on screen. */
 const whipAction = () => {
+  const wasVisible = overlay && overlay.isVisible();
   toggleOverlay();
-  if (onWayland) crackWhip();
+  if (onWayland && !wasVisible) {
+    crackWhip();
+    setTimeout(() => {
+      if (overlay && overlay.isVisible()) overlay.webContents.send('drop-whip');
+    }, 1200);
+  }
 };
 
 // ── App lifecycle ───────────────────────────────────────────────────────────
