@@ -287,27 +287,29 @@ function crackWhip() {
 // lock means pressing the key again while a whip is up re-cracks it instead of stacking
 // a second window.
 const WHIP_MS = 2500;
-let dropTimer;
-
-function doWhip() {
-  overlay.webContents.send('spawn-whip'); // (re)draw the whip
-  crackWhip();                            // Ctrl+C + phrase to the focused window
-  clearTimeout(dropTimer);
-  dropTimer = setTimeout(() => {
-    if (overlay && !overlay.isDestroyed() && overlay.isVisible()) {
-      overlay.webContents.send('drop-whip'); // cracks and falls off screen → hide-overlay → quit
-    }
-  }, WHIP_MS);
-}
 
 // No single-instance lock on purpose: a one-shot must never silently no-op because a
 // kill-9'd predecessor left a stale lock. Each run is independent — whip, then exit.
 app.whenReady().then(() => {
-  createOverlay();
-  overlay.show();
-  overlay.webContents.once('did-finish-load', doWhip);
-  // Safety net: exit even if the drop animation never reports back.
-  setTimeout(() => app.quit(), 8000);
+  // Crack FIRST, while the terminal (your Claude) still has focus. Doing the interrupt
+  // before the overlay exists means the overlay is free to grab focus / go fullscreen
+  // without the Ctrl+C ever landing in it — so we can position it properly on Wayland.
+  crackWhip();
+
+  setTimeout(() => {
+    createOverlay();
+    overlay.show();
+    overlay.webContents.once('did-finish-load', () => {
+      overlay.webContents.send('spawn-whip');
+      setTimeout(() => {
+        if (overlay && !overlay.isDestroyed() && overlay.isVisible()) {
+          overlay.webContents.send('drop-whip'); // falls off screen → hide-overlay → quit
+        }
+      }, WHIP_MS);
+    });
+  }, 350); // let the crack keystrokes land before the window can steal focus
+
+  setTimeout(() => app.quit(), 8000); // safety net
 });
 
 app.on('window-all-closed', () => app.quit());
