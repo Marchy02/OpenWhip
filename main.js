@@ -259,13 +259,20 @@ function sendMacroMac(text) {
 
 // Linux macro backend lives in ./linux-input (X11 xdotool + Wayland ydotool/wtype).
 
-/** Visible feedback for the keybind. On Linux the transparent mouse-driven overlay
- *  doesn't map under Wayland, so use a desktop notification (notify-send, which every
- *  target distro ships via libnotify; Electron Notification as fallback). */
-function showWhipFeedback(phrase) {
-  if (process.platform !== 'linux') {
-    toggleOverlay();
-    return;
+// The swingable whip overlay is a transparent, mouse-driven, non-focus-stealing fullscreen
+// window. That only behaves on X11/Windows/macOS — under Wayland compositors (Hyprland,
+// Sway, …) it maps as a blurred fullscreen layer that grabs the screen and can't be swung
+// or dismissed. When Electron runs on Wayland, WAYLAND_DISPLAY is set in its env; there we
+// skip the overlay and crack the whip with a desktop notification for feedback instead.
+const overlayUsable = !(process.platform === 'linux' && process.env.WAYLAND_DISPLAY);
+
+/** Crack the whip once and show a desktop notification (Wayland / no-overlay path). */
+function triggerWhip() {
+  const phrase = pickPhrase();
+  try {
+    sendMacro(phrase);
+  } catch (err) {
+    console.warn('whip failed:', err?.message || err);
   }
   const icon = path.join(__dirname, 'icon', 'Template.png');
   execFile('notify-send', ['-a', 'OpenWhip', '-i', icon, '🔥 OpenWhip', phrase], err => {
@@ -275,16 +282,8 @@ function showWhipFeedback(phrase) {
   });
 }
 
-/** CLI/keybind trigger: crack the whip once, with visible feedback. */
-function triggerWhip() {
-  const phrase = pickPhrase();
-  try {
-    sendMacro(phrase);
-  } catch (err) {
-    console.warn('whip failed:', err?.message || err);
-  }
-  showWhipFeedback(phrase);
-}
+/** What a tray click / keybind does: the fun overlay where it works, else a plain crack. */
+const whipAction = () => (overlayUsable ? toggleOverlay() : triggerWhip());
 
 // ── App lifecycle ───────────────────────────────────────────────────────────
 // Single-instance lock so `openwhip whip` (bound to a key on tray-less WMs like
@@ -294,7 +293,7 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on('second-instance', (_event, argv) => {
-    if (argv.includes('whip')) triggerWhip();
+    if (argv.includes('whip')) whipAction();
   });
 
   app.whenReady().then(async () => {
@@ -302,12 +301,12 @@ if (!gotLock) {
     tray.setToolTip('OpenWhip - click for whip');
     tray.setContextMenu(
       Menu.buildFromTemplate([
-        { label: 'Whip!', click: triggerWhip },
+        { label: 'Whip!', click: whipAction },
         { label: 'Quit', click: () => app.quit() },
       ])
     );
-    tray.on('click', toggleOverlay);
-    if (process.argv.includes('whip')) triggerWhip();
+    tray.on('click', whipAction);
+    if (process.argv.includes('whip')) whipAction();
   });
 
   app.on('window-all-closed', e => e.preventDefault()); // keep alive in tray
