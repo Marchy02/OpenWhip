@@ -124,9 +124,7 @@ async function getTrayIcon() {
 
 // ── Overlay window ──────────────────────────────────────────────────────────
 function createOverlay() {
-  // Put the whip on the monitor the user is actually looking at (cursor's screen),
-  // not the OS "primary" — which on a laptop+external setup is usually the wrong one.
-  const { bounds } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
+  const { bounds } = screen.getPrimaryDisplay();
   overlay = new BrowserWindow({
     x: bounds.x, y: bounds.y,
     width: bounds.width, height: bounds.height,
