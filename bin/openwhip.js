@@ -18,7 +18,8 @@ try {
 
 const appPath = path.resolve(__dirname, '..');
 
-const child = spawn(electronBinary, [appPath], {
+const forwardedArgs = process.argv.slice(2); // e.g. "whip" for a Hyprland keybind
+const child = spawn(electronBinary, [appPath, ...forwardedArgs], {
   detached: true,
   stdio: 'ignore',
   windowsHide: true,

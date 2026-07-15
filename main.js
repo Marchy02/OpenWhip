@@ -258,16 +258,38 @@ function sendMacroMac(text) {
 
 // Linux macro backend lives in ./linux-input (X11 xdotool + Wayland ydotool/wtype).
 
-// ── App lifecycle ───────────────────────────────────────────────────────────
-app.whenReady().then(async () => {
-  tray = new Tray(await getTrayIcon());
-  tray.setToolTip('OpenWhip - click for whip');
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      { label: 'Quit', click: () => app.quit() },
-    ])
-  );
-  tray.on('click', toggleOverlay);
-});
+/** CLI/keybind trigger: crack the whip once (interrupt + phrase) without touching the tray. */
+function triggerWhip() {
+  try {
+    sendMacro();
+  } catch (err) {
+    console.warn('whip failed:', err?.message || err);
+  }
+}
 
-app.on('window-all-closed', e => e.preventDefault()); // keep alive in tray
+// ── App lifecycle ───────────────────────────────────────────────────────────
+// Single-instance lock so `openwhip whip` (bound to a key on tray-less WMs like
+// Hyprland/Sway) reaches the already-running instance instead of starting a second one.
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, argv) => {
+    if (argv.includes('whip')) triggerWhip();
+  });
+
+  app.whenReady().then(async () => {
+    tray = new Tray(await getTrayIcon());
+    tray.setToolTip('OpenWhip - click for whip');
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: 'Whip!', click: triggerWhip },
+        { label: 'Quit', click: () => app.quit() },
+      ])
+    );
+    tray.on('click', toggleOverlay);
+    if (process.argv.includes('whip')) triggerWhip();
+  });
+
+  app.on('window-all-closed', e => e.preventDefault()); // keep alive in tray
+}
