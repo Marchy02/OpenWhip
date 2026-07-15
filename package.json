@@ -32,6 +32,7 @@
   "homepage": "https://github.com/GitFrog1111/OpenWhip#readme",
   "files": [
     "main.js",
+    "linux-input.js",
     "preload.js",
     "overlay.html",
     "sounds",
