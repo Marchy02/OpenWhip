@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, screen, Notification } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -271,29 +271,22 @@ function sendMacroMac(text) {
 // Sway, …) it maps as a blurred fullscreen layer that grabs the screen and can't be swung
 // or dismissed. When Electron runs on Wayland, WAYLAND_DISPLAY is set in its env; there we
 // skip the overlay and crack the whip with a desktop notification for feedback instead.
-const overlayUsable = !(process.platform === 'linux' && process.env.WAYLAND_DISPLAY);
+const onWayland = process.platform === 'linux' && !!process.env.WAYLAND_DISPLAY;
 
-/** Crack the whip once and show a desktop notification (Wayland / no-overlay path). */
-function triggerWhip() {
-  const phrase = pickPhrase();
+/** Fire the interrupt + phrase (no UI). */
+function crackWhip() {
   try {
-    sendMacro(phrase);
+    sendMacro(pickPhrase());
   } catch (err) {
     console.warn('whip failed:', err?.message || err);
   }
-  const icon = path.join(__dirname, 'icon', 'Template.png');
-  execFile('notify-send', ['-a', 'OpenWhip', '-i', icon, '🔥 OpenWhip', phrase], err => {
-    if (err && Notification.isSupported()) {
-      new Notification({ title: '🔥 OpenWhip', body: phrase }).show();
-    }
-  });
 }
 
-/** What a tray click / keybind does: show the whip overlay (and crack + notify on Wayland,
- *  where the overlay is decorative because you can't reliably swing it). */
+/** Tray click / keybind: show the whip overlay. On Wayland the overlay is decorative
+ *  (you can't reliably swing it to crack), so also fire the interrupt directly. */
 const whipAction = () => {
   toggleOverlay();
-  if (!overlayUsable) triggerWhip(); // Wayland: guarantee the interrupt + visible notification
+  if (onWayland) crackWhip();
 };
 
 // ── App lifecycle ───────────────────────────────────────────────────────────
