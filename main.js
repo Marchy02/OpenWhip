@@ -303,20 +303,14 @@ function doWhip() {
   }, WHIP_MS);
 }
 
-if (!app.requestSingleInstanceLock()) {
-  app.quit(); // another whip is already on screen; don't open a second
-} else {
-  app.on('second-instance', () => {
-    if (overlay && !overlay.isDestroyed()) doWhip(); // re-whip in place
-  });
+// No single-instance lock on purpose: a one-shot must never silently no-op because a
+// kill-9'd predecessor left a stale lock. Each run is independent — whip, then exit.
+app.whenReady().then(() => {
+  createOverlay();
+  overlay.show();
+  overlay.webContents.once('did-finish-load', doWhip);
+  // Safety net: exit even if the drop animation never reports back.
+  setTimeout(() => app.quit(), 8000);
+});
 
-  app.whenReady().then(() => {
-    createOverlay();
-    overlay.show();
-    overlay.webContents.once('did-finish-load', doWhip);
-    // Safety net: exit even if the drop animation never reports back.
-    setTimeout(() => app.quit(), 8000);
-  });
-
-  app.on('window-all-closed', () => app.quit());
-}
+app.on('window-all-closed', () => app.quit());
