@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 const { execFile } = require('child_process');
+const { sendMacroLinux, refocusLinux } = require('./linux-input');
 
 // ── Win32 FFI (Windows only) ────────────────────────────────────────────────
 let keybd_event, VkKeyScanA;
@@ -53,11 +54,7 @@ function refocusPreviousApp() {
         }
       });
     } else if (process.platform === 'linux') {
-      execFile('xdotool', ['key', '--clearmodifiers', 'alt+Tab'], err => {
-        if (err) {
-          console.warn('refocus previous app (Alt+Tab) failed. Install xdotool:', err.message);
-        }
-      });
+      refocusLinux(err => console.warn('refocus previous app (Alt+Tab) failed:', err.message));
     }
   };
   setTimeout(run, delayMs);
@@ -199,7 +196,7 @@ function sendMacro() {
   } else if (process.platform === 'darwin') {
     sendMacroMac(chosen);
   } else if (process.platform === 'linux') {
-    sendMacroLinux(chosen);
+    sendMacroLinux(chosen, err => console.warn('linux macro failed:', err.message));
   }
 }
 
@@ -259,21 +256,7 @@ function sendMacroMac(text) {
   });
 }
 
-function sendMacroLinux(text) {
-  execFile(
-    'xdotool',
-    [
-      'key', '--clearmodifiers', 'ctrl+c',
-      'type', '--delay', '1', '--clearmodifiers', '--', text,
-      'key', 'Return',
-    ],
-    err => {
-      if (err) {
-        console.warn('linux macro failed. Install xdotool:', err.message);
-      }
-    }
-  );
-}
+// Linux macro backend lives in ./linux-input (X11 xdotool + Wayland ydotool/wtype).
 
 // ── App lifecycle ───────────────────────────────────────────────────────────
 app.whenReady().then(async () => {

@@ -11,11 +11,26 @@ npm install -g openwhip
 openwhip
 ```
 
-windows and mac supported out of the box, but Linux is a special snowflake so you need to install `xdotool` for keyboard automation
+windows and mac supported out of the box. Linux is a special snowflake so you need a keyboard-automation tool. OpenWhip picks the right one for your session automatically:
+
+- **X11** → `xdotool`
+- **Wayland** (Fedora / Arch / modern Debian default) → `ydotool` (works on GNOME, KDE, wlroots), or `wtype` on wlroots compositors
+
+Install the one for your setup:
+
+| Distro | X11 | Wayland |
+|--------|-----|---------|
+| Debian / Ubuntu | `sudo apt install xdotool` | `sudo apt install ydotool` |
+| Fedora | `sudo dnf install xdotool` | `sudo dnf install ydotool` |
+| Arch | `sudo pacman -S xdotool` | `sudo pacman -S ydotool` |
+
+On Wayland, `ydotool` needs its daemon running and access to `/dev/uinput`:
 
 ```bash
-sudo apt install xdotool
+sudo systemctl enable --now ydotool
 ```
+
+Not sure what you have? Run `node linux-input.js` in the repo — it prints your session type and which backend it will use.
 
 ## Controls
 
