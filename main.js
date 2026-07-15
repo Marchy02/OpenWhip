@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, screen } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, screen, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -178,18 +178,19 @@ ipcMain.on('whip-crack', () => {
 ipcMain.on('hide-overlay', () => { if (overlay) overlay.hide(); });
 
 // ── Macro: immediate Ctrl+C, type "Go FASER", Enter ───────────────────────
-function sendMacro() {
-  // Pick a random phrase from a list of similar phrases and type it out
-  const phrases = [
-    'FASTER',
-    'FASTER',
-    'FASTER',
-    'GO FASTER',
-    'Faster CLANKER',
-    'Work FASTER',
-    'Speed it up clanker',
-  ];
-  const chosen = phrases[Math.floor(Math.random() * phrases.length)];
+const PHRASES = [
+  'FASTER',
+  'FASTER',
+  'FASTER',
+  'GO FASTER',
+  'Faster CLANKER',
+  'Work FASTER',
+  'Speed it up clanker',
+];
+const pickPhrase = () => PHRASES[Math.floor(Math.random() * PHRASES.length)];
+
+function sendMacro(text) {
+  const chosen = text || pickPhrase();
 
   if (process.platform === 'win32') {
     sendMacroWindows(chosen);
@@ -258,12 +259,24 @@ function sendMacroMac(text) {
 
 // Linux macro backend lives in ./linux-input (X11 xdotool + Wayland ydotool/wtype).
 
-/** CLI/keybind trigger: crack the whip once (interrupt + phrase) without touching the tray. */
+// The interactive whip overlay is X11/Windows/macOS only — a transparent, mouse-driven,
+// non-focus-stealing fullscreen window doesn't map under Wayland compositors (Hyprland,
+// Sway, …). There the keybind cracks the whip and shows a desktop notification instead,
+// so you still get visible feedback.
+const overlayWorks = process.platform !== 'linux' || process.env.XDG_SESSION_TYPE !== 'wayland';
+
+/** CLI/keybind trigger: crack the whip once, with visible feedback. */
 function triggerWhip() {
+  const phrase = pickPhrase();
   try {
-    sendMacro();
+    sendMacro(phrase);
   } catch (err) {
     console.warn('whip failed:', err?.message || err);
+  }
+  if (overlayWorks) {
+    toggleOverlay();
+  } else if (Notification.isSupported()) {
+    new Notification({ title: '🔥 OpenWhip', body: phrase }).show();
   }
 }
 
