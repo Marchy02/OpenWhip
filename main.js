@@ -292,7 +292,7 @@ const whipAction = () => {
     crackWhip();
     setTimeout(() => {
       if (overlay && overlay.isVisible()) overlay.webContents.send('drop-whip');
-    }, 1200);
+    }, 2500);
   }
 };
 
