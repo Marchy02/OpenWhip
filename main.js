@@ -259,11 +259,21 @@ function sendMacroMac(text) {
 
 // Linux macro backend lives in ./linux-input (X11 xdotool + Wayland ydotool/wtype).
 
-// The interactive whip overlay is X11/Windows/macOS only — a transparent, mouse-driven,
-// non-focus-stealing fullscreen window doesn't map under Wayland compositors (Hyprland,
-// Sway, …). There the keybind cracks the whip and shows a desktop notification instead,
-// so you still get visible feedback.
-const overlayWorks = process.platform !== 'linux' || process.env.XDG_SESSION_TYPE !== 'wayland';
+/** Visible feedback for the keybind. On Linux the transparent mouse-driven overlay
+ *  doesn't map under Wayland, so use a desktop notification (notify-send, which every
+ *  target distro ships via libnotify; Electron Notification as fallback). */
+function showWhipFeedback(phrase) {
+  if (process.platform !== 'linux') {
+    toggleOverlay();
+    return;
+  }
+  const icon = path.join(__dirname, 'icon', 'Template.png');
+  execFile('notify-send', ['-a', 'OpenWhip', '-i', icon, '🔥 OpenWhip', phrase], err => {
+    if (err && Notification.isSupported()) {
+      new Notification({ title: '🔥 OpenWhip', body: phrase }).show();
+    }
+  });
+}
 
 /** CLI/keybind trigger: crack the whip once, with visible feedback. */
 function triggerWhip() {
@@ -273,11 +283,7 @@ function triggerWhip() {
   } catch (err) {
     console.warn('whip failed:', err?.message || err);
   }
-  if (overlayWorks) {
-    toggleOverlay();
-  } else if (Notification.isSupported()) {
-    new Notification({ title: '🔥 OpenWhip', body: phrase }).show();
-  }
+  showWhipFeedback(phrase);
 }
 
 // ── App lifecycle ───────────────────────────────────────────────────────────
