@@ -149,10 +149,16 @@ exec openwhip
 bindsym $mod+x exec openwhip whip
 ```
 
+> **Wayland feedback:** the swingable whip overlay is an X11/Windows/macOS thing — a
+> transparent, mouse-driven, non-focus-stealing fullscreen window can't map under Wayland
+> compositors. On Wayland the whip still fires the interrupt + phrase; you get a desktop
+> **notification** (`notify-send`) as visible feedback instead of the animation.
+
 ## Controls
 
-- **Keybind / CLI:** `openwhip whip` cracks the whip (best on Hyprland/Sway).
+- **Keybind / CLI:** `openwhip whip` cracks the whip (best on Hyprland/Sway/Wayland).
 - **Tray icon:** click to spawn the whip overlay, click again to drop it. Right-click → *Whip!*.
+  (Tray needs a tray host — e.g. Waybar's `tray` module; absent on bare Hyprland/Sway.)
 - Whip him 😩💢
 - It sends an interrupt (Ctrl-C) and one of 5 encouraging messages!
 
