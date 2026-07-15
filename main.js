@@ -5,10 +5,9 @@ const os = require('os');
 const { execFile } = require('child_process');
 const { sendMacroLinux, refocusLinux } = require('./linux-input');
 
-// This machine's GPU process can fail to launch under Wayland ("GPU process isn't usable"),
-// which crashes the app before the overlay ever shows. The overlay is a simple 2D canvas, so
-// software rendering is plenty — disable HW acceleration on Linux for reliability.
-if (process.platform === 'linux') app.disableHardwareAcceleration();
+// (No disableHardwareAcceleration: software rendering washes the whip out to near-invisible
+// under Wayland. Hardware acceleration keeps it crisp; the no_blur window rule handles the
+// compositor blur that would otherwise frost the transparent overlay.)
 
 // ── Win32 FFI (Windows only) ────────────────────────────────────────────────
 let keybd_event, VkKeyScanA;
