@@ -124,7 +124,9 @@ async function getTrayIcon() {
 
 // ── Overlay window ──────────────────────────────────────────────────────────
 function createOverlay() {
-  const { bounds } = screen.getPrimaryDisplay();
+  // Put the whip on the monitor the user is actually looking at (cursor's screen),
+  // not the OS "primary" — which on a laptop+external setup is usually the wrong one.
+  const { bounds } = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   overlay = new BrowserWindow({
     x: bounds.x, y: bounds.y,
     width: bounds.width, height: bounds.height,
@@ -283,24 +285,38 @@ function crackWhip() {
 }
 
 // ── App lifecycle: one-shot ───────────────────────────────────────────────────
-// Run `openwhip` → the whip cracks over your screen and interrupts the focused
-// terminal (your Claude), then it exits. No tray, no background daemon, nothing left
-// running. Bind it to a key yourself if you like — the tool doesn't touch your config.
-app.whenReady().then(() => {
-  createOverlay();
-  overlay.show();
-  overlay.webContents.once('did-finish-load', () => {
-    overlay.webContents.send('spawn-whip'); // draw the whip
-    crackWhip();                            // Ctrl+C + phrase to the focused window
-    // On Wayland you can't swing the whip with the mouse, so drop it after a beat.
-    setTimeout(() => {
-      if (overlay && !overlay.isDestroyed() && overlay.isVisible()) {
-        overlay.webContents.send('drop-whip'); // it cracks and falls off screen → hide-overlay → quit
-      }
-    }, 2500);
-  });
-  // Safety net: exit even if the drop animation never reports back.
-  setTimeout(() => app.quit(), 8000);
-});
+// Run `openwhip` → the whip cracks over your screen, interrupts the focused terminal
+// (your Claude), then exits. No tray, no daemon, nothing left running. A single-instance
+// lock means pressing the key again while a whip is up re-cracks it instead of stacking
+// a second window.
+const WHIP_MS = 2500;
+let dropTimer;
 
-app.on('window-all-closed', () => app.quit());
+function doWhip() {
+  overlay.webContents.send('spawn-whip'); // (re)draw the whip
+  crackWhip();                            // Ctrl+C + phrase to the focused window
+  clearTimeout(dropTimer);
+  dropTimer = setTimeout(() => {
+    if (overlay && !overlay.isDestroyed() && overlay.isVisible()) {
+      overlay.webContents.send('drop-whip'); // cracks and falls off screen → hide-overlay → quit
+    }
+  }, WHIP_MS);
+}
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit(); // another whip is already on screen; don't open a second
+} else {
+  app.on('second-instance', () => {
+    if (overlay && !overlay.isDestroyed()) doWhip(); // re-whip in place
+  });
+
+  app.whenReady().then(() => {
+    createOverlay();
+    overlay.show();
+    overlay.webContents.once('did-finish-load', doWhip);
+    // Safety net: exit even if the drop animation never reports back.
+    setTimeout(() => app.quit(), 8000);
+  });
+
+  app.on('window-all-closed', () => app.quit());
+}
