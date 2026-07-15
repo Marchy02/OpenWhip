@@ -5,6 +5,11 @@ const os = require('os');
 const { execFile } = require('child_process');
 const { sendMacroLinux, refocusLinux } = require('./linux-input');
 
+// This machine's GPU process can fail to launch under Wayland ("GPU process isn't usable"),
+// which crashes the app before the overlay ever shows. The overlay is a simple 2D canvas, so
+// software rendering is plenty — disable HW acceleration on Linux for reliability.
+if (process.platform === 'linux') app.disableHardwareAcceleration();
+
 // ── Win32 FFI (Windows only) ────────────────────────────────────────────────
 let keybd_event, VkKeyScanA;
 if (process.platform === 'win32') {
@@ -123,7 +128,9 @@ function createOverlay() {
   overlay = new BrowserWindow({
     x: bounds.x, y: bounds.y,
     width: bounds.width, height: bounds.height,
+    title: 'openwhip-overlay', // stable handle for Wayland compositor rules (noblur, nofocus, pin)
     transparent: true,
+    backgroundColor: '#00000000', // fully transparent; software rendering defaults to white without this
     frame: false,
     alwaysOnTop: true,
     focusable: false,
@@ -282,8 +289,12 @@ function triggerWhip() {
   });
 }
 
-/** What a tray click / keybind does: the fun overlay where it works, else a plain crack. */
-const whipAction = () => (overlayUsable ? toggleOverlay() : triggerWhip());
+/** What a tray click / keybind does: show the whip overlay (and crack + notify on Wayland,
+ *  where the overlay is decorative because you can't reliably swing it). */
+const whipAction = () => {
+  toggleOverlay();
+  if (!overlayUsable) triggerWhip(); // Wayland: guarantee the interrupt + visible notification
+};
 
 // ── App lifecycle ───────────────────────────────────────────────────────────
 // Single-instance lock so `openwhip whip` (bound to a key on tray-less WMs like
