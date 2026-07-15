@@ -182,7 +182,7 @@ ipcMain.on('whip-crack', () => {
     console.warn('sendMacro failed:', err?.message || err);
   }
 });
-ipcMain.on('hide-overlay', () => { if (overlay) overlay.hide(); });
+ipcMain.on('hide-overlay', () => { if (overlay && !overlay.isDestroyed()) overlay.close(); });
 
 // ── Macro: immediate Ctrl+C, type "Go FASER", Enter ───────────────────────
 const PHRASES = [
@@ -282,43 +282,25 @@ function crackWhip() {
   }
 }
 
-/** Tray click / keybind: show the whip overlay. On Wayland the overlay is decorative
- *  (you can't swing it with the mouse), so fire the interrupt directly and auto-drop the
- *  whip after a beat so it cracks and falls away instead of hanging on screen. */
-const whipAction = () => {
-  const wasVisible = overlay && overlay.isVisible();
-  toggleOverlay();
-  if (onWayland && !wasVisible) {
-    crackWhip();
+// ── App lifecycle: one-shot ───────────────────────────────────────────────────
+// Run `openwhip` → the whip cracks over your screen and interrupts the focused
+// terminal (your Claude), then it exits. No tray, no background daemon, nothing left
+// running. Bind it to a key yourself if you like — the tool doesn't touch your config.
+app.whenReady().then(() => {
+  createOverlay();
+  overlay.show();
+  overlay.webContents.once('did-finish-load', () => {
+    overlay.webContents.send('spawn-whip'); // draw the whip
+    crackWhip();                            // Ctrl+C + phrase to the focused window
+    // On Wayland you can't swing the whip with the mouse, so drop it after a beat.
     setTimeout(() => {
-      if (overlay && overlay.isVisible()) overlay.webContents.send('drop-whip');
+      if (overlay && !overlay.isDestroyed() && overlay.isVisible()) {
+        overlay.webContents.send('drop-whip'); // it cracks and falls off screen → hide-overlay → quit
+      }
     }, 2500);
-  }
-};
-
-// ── App lifecycle ───────────────────────────────────────────────────────────
-// Single-instance lock so `openwhip whip` (bound to a key on tray-less WMs like
-// Hyprland/Sway) reaches the already-running instance instead of starting a second one.
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
-  app.quit();
-} else {
-  app.on('second-instance', (_event, argv) => {
-    if (argv.includes('whip')) whipAction();
   });
+  // Safety net: exit even if the drop animation never reports back.
+  setTimeout(() => app.quit(), 8000);
+});
 
-  app.whenReady().then(async () => {
-    tray = new Tray(await getTrayIcon());
-    tray.setToolTip('OpenWhip - click for whip');
-    tray.setContextMenu(
-      Menu.buildFromTemplate([
-        { label: 'Whip!', click: whipAction },
-        { label: 'Quit', click: () => app.quit() },
-      ])
-    );
-    tray.on('click', whipAction);
-    if (process.argv.includes('whip')) whipAction();
-  });
-
-  app.on('window-all-closed', e => e.preventDefault()); // keep alive in tray
-}
+app.on('window-all-closed', () => app.quit());
